@@ -6,7 +6,8 @@
  * the University of Colorado and Chase E Stewart are not liable for any misuse of this material. 
  * License copyright (C) 2017 originally from Alex Fosdick, code by Chase E Stewart.
  *****************************************************/
-/**
+
+/*
  * @file led_driver.c
  * @brief A driver to control Beaglebone LEDs in userspace 
  * 
@@ -28,21 +29,19 @@
 #include <linux/fs.h>
 
 /* device vars*/
-#define DEVICE_NAME "led_driver"
-#define CLASS_NAME  "ebb"
+#define DEVICE_NAME "myledchar"
+#define CLASS_NAME  "myled"
 
 /* GPIO vars */
 #define LED_GPIO 56
 #define LED_ON   1
 #define LED_OFF  0 
 
-
 /* module info */
-MODULE_LICENSE("GPL")
-MODULE_AUTHOR("Chase E Stewart")
-MODULE_DESCRIPTION("A dead simple char driver for BBB LEDs")
-MODULE_VERSION("0.1") 
-
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Chase E Stewart");
+MODULE_DESCRIPTION("A dead simple char driver for BBB LEDs");
+MODULE_VERSION("0.1");
 
 /* prototypes */
 static int dev_open(struct inode *, struct file *);
@@ -64,7 +63,6 @@ static struct file_operations fops =
 static bool led_state = 0;
 static int  driver_number;
 static char   message[256] = {0};           
-static short  size_of_message;              
 static int    numberOpens = 0;              
 static struct class*  ledDriverClass  = NULL; ///< The device-driver class struct pointer
 static struct device* ledDriverDevice = NULL; ///< The device-driver device struct pointer
@@ -72,62 +70,93 @@ static struct device* ledDriverDevice = NULL; ///< The device-driver device stru
 
 
 static int __init init_led_driver(void){
-	int retval;
-	printk(KERN_INFO "[led_driver] Initiating LED Driver\n");
-	driver_number = register_chrdev(0, DEVICE_NAME, &fops);
-	if (driver_number < 0)
-	{
-		printk(KERN_ERROR "[led_driver] could not register the driver!\n");
-		return driver_number;
-	}
-	printk(KERN_INFO "[led_driver] registered the driver\n");
 	
-	
+	/* register the gpio */
 	if (!gpio_is_valid(LED_GPIO))
 	{
-		printk(KERN_ERROR "[led_driver] Invalid GPIO pin provided\n");
+		printk(KERN_ERR "[led_driver] Invalid GPIO pin provided\n");
 		return 1;
 	}
 	gpio_request(LED_GPIO, "sysfs");
 	led_state = LED_ON;
 	gpio_direction_output(LED_GPIO, LED_ON);
 	gpio_export(LED_GPIO, false);
-	
 	printk(KERN_INFO "[led_driver] LED GPIO pins Initialized\n");
-	return retval;
 
+	/* grab a major number for the device driver */
+	printk(KERN_INFO "[led_driver] Initiating LED Driver\n");
+	driver_number = register_chrdev(0, DEVICE_NAME, &fops);
+	if (driver_number < 0)
+	{
+		printk(KERN_ERR "[led_driver] could not register the driver!\n");
+		return driver_number;
+	}
+	printk(KERN_INFO "[led_driver] registered the driver with driver number %d\n", driver_number);
+	
+	/* attempt to register the device with the driver number */
+	ledDriverClass = class_create(THIS_MODULE, CLASS_NAME);
+	if (IS_ERR(ledDriverClass))
+	{
+		unregister_chrdev(driver_number, DEVICE_NAME);
+		printk(KERN_ERR "Failed to register device class\n");
+		return PTR_ERR(ledDriverClass);
+	}
+	printk(KERN_INFO "Successfully registered device class");
+
+	/* register device driver */
+	ledDriverDevice = device_create(ledDriverClass, NULL, MKDEV(driver_number, 0), NULL, DEVICE_NAME);
+	if (IS_ERR(ledDriverDevice))
+	{
+		class_destroy(ledDriverClass);
+		unregister_chrdev(driver_number, DEVICE_NAME);
+		printk(KERN_ERR "Failed to create device!\n");
+		return PTR_ERR(ledDriverDevice);
+	}
+	return 0;
 }
 
 static int __init exit_led_driver(void){
 	printk(KERN_INFO "[led_driver] Closing  LED Driver\n");
+
+	/* First, free GPIO resources */
 	gpio_set_value(LED_GPIO, LED_OFF);
 	gpio_unexport(LED_GPIO);
 	gpio_free(LED_GPIO);
-	printk(KERN_INFO "[led_driver] LED Driver terminated!\n");
+	printk(KERN_INFO "[led_driver] GPIO links terminated\n");
 
-
+	/* Now destroy driver */
+	device_destroy(ledDriverClass, MKDEV(driver_number, 0));
+	class_unregister(ledDriverClass);
+	class_destroy(ledDriverClass);
+	unregister_chrdev(driver_number, DEVICE_NAME);
+	printk(KERN_INFO "[led_driver] LED Driver exit... Goodbye!\n");
+	return 0;
 }
 
 static int dev_open(struct inode *inodep, struct file *filep)
 {
-	count_access++;
-	printk(KERN_INFO "[led_driver] LED Driver has been accessed %d times\n", count_access );
+	numberOpens++;
+	printk(KERN_INFO "[led_driver] LED Driver has been accessed %d times\n", numberOpens );
 	return 0;
 }
 
-static int dev_read(struct file *, char *, size_t, loff_t *)
+static int dev_read(struct file *myfile, char *mybuffer, size_t len, loff_t *myoffset)
 {
 
+	printk(KERN_INFO "[led_driver] LED Driver has been read!\n");
+	return 0;
 }
 
-static int dev_write(struct file *, const char *, size_t, loff_t *)
+static int dev_write(struct file *myfile, const char *mybuffer, size_t len, loff_t *myoffset)
 {
-
+	sprintf(message, "%s(%zu letters)", mybuffer, len);
+	printk(KERN_INFO "[led_driver] LED Driver received message \'%s\' \n", message);
+	return 0;
 }
 
 static int dev_release(struct inode *inodep, struct file *filep)
 {
-	printk(KERN_INFO "Closed the LED driver device\n");
+	printk(KERN_INFO "[led_driver] Closed the LED driver device\n");
 	return 0;
 }
 
