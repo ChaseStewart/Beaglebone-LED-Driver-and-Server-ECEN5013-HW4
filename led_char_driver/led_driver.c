@@ -33,7 +33,7 @@
 #define CLASS_NAME  "myled"
 
 /* GPIO vars */
-#define LED_GPIO 56
+#define LED_GPIO 49
 #define LED_ON   1
 #define LED_OFF  0 
 
@@ -69,6 +69,9 @@ static struct device* ledDriverDevice = NULL;
 
 
 
+/*
+ * Init LED driver needs to setup the LED, the driver
+ */
 static int __init init_led_driver(void){
 	
 	/* register the gpio */
@@ -101,7 +104,7 @@ static int __init init_led_driver(void){
 		printk(KERN_ERR "Failed to register device class\n");
 		return PTR_ERR(ledDriverClass);
 	}
-	printk(KERN_INFO "Successfully registered device class");
+	printk(KERN_INFO "[led_driver] Successfully registered device class");
 
 	/* register device driver */
 	ledDriverDevice = device_create(ledDriverClass, NULL, MKDEV(driver_number, 0), NULL, DEVICE_NAME);
@@ -112,9 +115,13 @@ static int __init init_led_driver(void){
 		printk(KERN_ERR "Failed to create device!\n");
 		return PTR_ERR(ledDriverDevice);
 	}
+	printk(KERN_INFO "[led_driver] Successfully initialized the driver");
 	return 0;
 }
 
+/*
+ * Open is kinda a throwaway, just log number of times this has been accessed.
+ */
 static int dev_open(struct inode *inodep, struct file *filep)
 {
 	numberOpens++;
@@ -122,6 +129,9 @@ static int dev_open(struct inode *inodep, struct file *filep)
 	return 0;
 }
 
+/*
+ * Use read to return the status of the LED. Should maybe also copy-to-user
+ */
 static int dev_read(struct file *myfile, char *mybuffer, size_t len, loff_t *myoffset)
 {
 	switch(led_state)
@@ -139,64 +149,87 @@ static int dev_read(struct file *myfile, char *mybuffer, size_t len, loff_t *myo
 	return 0;
 }
 
+
+
+/*
+ * Set the LED value based on what is written to the driver
+ */
 static int dev_write(struct file *myfile, const char *mybuffer, size_t len, loff_t *myoffset)
 {
 	sprintf(message, "%s(%zu letters)", mybuffer, len);
+	printk(KERN_INFO "[led_driver] LED Driver received message <%s>\n", message);
 	if (strcmp(message, "on"))
 	{
 		led_state = LED_ON;
 		gpio_set_value(LED_GPIO, LED_ON);
+		printk(KERN_INFO, "Setting LED On\n");
 	}
 	else if (strcmp(message, "On"))
 	{
 		led_state = LED_ON;
 		gpio_set_value(LED_GPIO, LED_ON);
+		printk(KERN_INFO, "Setting LED On\n");
 	}
 	else if (strcmp(message, "ON"))
 	{
 		led_state = LED_ON;
 		gpio_set_value(LED_GPIO, LED_ON);
+		printk(KERN_INFO, "Setting LED On\n");
 	}
 	else if (strcmp(message, "1"))
 	{
 		led_state = LED_ON;
 		gpio_set_value(LED_GPIO, LED_ON);
+		printk(KERN_INFO, "Setting LED On\n");
 	}
 	else if (strcmp(message, "off"))
 	{
 		led_state = LED_OFF;
 		gpio_set_value(LED_GPIO, LED_OFF);
+		printk(KERN_INFO, "Setting LED Off\n");
 	}
 	else if (strcmp(message, "Off"))
 	{
 		led_state = LED_OFF;
 		gpio_set_value(LED_GPIO, LED_OFF);
+		printk(KERN_INFO, "Setting LED Off\n");
 	}
 	else if (strcmp(message, "OFF"))
 	{
 		led_state = LED_OFF;
 		gpio_set_value(LED_GPIO, LED_OFF);
+		printk(KERN_INFO, "Setting LED Off\n");
 	}
 	else if (strcmp(message, "0"))
 	{
 		led_state = LED_OFF;
 		gpio_set_value(LED_GPIO, LED_OFF);
+		printk(KERN_INFO, "Setting LED Off\n");
 	}
 	else
 	{
 		printk(KERN_ALERT "[led_driver] Driver received invalid response\n");
 	}
 
-	printk(KERN_INFO "[led_driver] LED Driver received message \'%s\' \n", message);
-	return 0;
+	return len;
 }
 
+
+
+/*
+ * On a /dev release, just log a message 
+ */
 static int dev_release(struct inode *inodep, struct file *filep)
 {
 	printk(KERN_INFO "[led_driver] Closed the LED driver device\n");
 	return 0;
 }
 
+
+
+/*
+ * On exit, free GPIO and driver resources and log a result message
+ */
 static int __init exit_led_driver(void){
 	printk(KERN_INFO "[led_driver] Closing  LED Driver\n");
 
