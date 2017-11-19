@@ -1,6 +1,28 @@
+/*****************************************************
+ * Redistribution, modification or use of this software in source or binary forms
+ * is permitted as long as the files maintain this copyright. Users are permitted to
+ * modify this and use it to learn about the field of embedded software but don't copy
+ * my (Chase E Stewart's) work for class, I worked really hard on this. Alex Fosdick and
+ * the University of Colorado and Chase E Stewart are not liable for any misuse of this material.
+ * License copyright (C) 2017 originally from Alex Fosdick, code by Chase E Stewart.
+ *****************************************************/
+/*
+ * @file server.c
+ * @brief A server to receive commands in userspace and then forward them to the driver
+ *
+ * 
+ *
+ *
+ * @author Chase E Stewart
+ * @date November 11 2017
+ * @version 1.0
+ *
+ */
+
 
 #include "server.h"
 
+static char to_send[INPUT_LEN];
 static char in_message[INPUT_LEN];
 int server_state = STATE_RUNNING;
 
@@ -124,16 +146,27 @@ int main(void)
 
 int read_driver_var(int file_id, int var_id)
 {
+	int retval, led_state, led_freq, led_duty, num_opens;
+	char results[INPUT_LEN];
+
+	retval = read(file_id, results, INPUT_LEN);
+	if (retval < 0)
+	{
+		printf("[led_server] Failed to read input!\n");
+		return 1;
+	}
+
+	sscanf(results, "%d:%d:%d:%d\n", &led_state, &led_freq, &led_duty, &num_opens);
 	switch (var_id)
 	{
 		case VAR_STATE:
-			printf("[led_server] Would have read LED state\n");
+			printf("[led_server] LED State is %d\n", led_state);
 			break;
 		case VAR_DUTY:
-			printf("[led_server] Would have read LED duty cycle\n");
+			printf("[led_server] LED duty cycle is %d\n", led_duty);
 			break;
 		case VAR_FREQ:
-			printf("[led_server] Would have read LED freq\n");
+			printf("[led_server] LED freq is %d\n", led_freq);
 			break;
 		default:
 			printf("[led_server] Invalid input!\n");
@@ -144,7 +177,18 @@ int read_driver_var(int file_id, int var_id)
 
 int read_all_driver_vars(int file_id)
 {
-	/* TODO read all vars one-at-a-time */
+	int retval, led_state, led_freq, led_duty, num_opens;
+	char results[INPUT_LEN];
+
+	retval = read(file_id, results, INPUT_LEN);
+	if (retval < 0)
+	{
+		printf("[led_server] Failed to read input!\n");
+		return 1;
+	}
+
+	sscanf(results, "%d:%d:%d:%d\n", &led_state, &led_freq, &led_duty, &num_opens);
+	printf("[led_server] State:%d, Freq:%d, Duty_Cycle:%d, Num_Opens:%d\n", led_state, led_freq, led_duty, num_opens );
 	return 0;
 }
 
@@ -155,7 +199,8 @@ int set_led_state(int file_id, int state)
 	if (state == 1)
 	{
 		printf("[led_server] Setting LED ON\n");
-		retval = write(file_id, LED_ON_STR, strlen(LED_ON_STR));
+		sprintf(to_send, "state:on");
+		retval = write(file_id, to_send, strlen(to_send));
 		if (retval < 0 )
 		{
 			printf("[led_server] Failed to write to driver!\n");
@@ -165,7 +210,8 @@ int set_led_state(int file_id, int state)
 	else if (state == 0)
 	{
 		printf("[led_server] Setting LED OFF\n");
-		retval = write(file_id, LED_OFF_STR, strlen(LED_OFF_STR));
+		sprintf(to_send, "state:off");
+		retval = write(file_id, to_send, strlen(to_send));
 		if (retval < 0 )
 		{
 			printf("[led_server] Failed to write to driver!\n");
@@ -189,7 +235,8 @@ int set_led_freq(int file_id, int freq)
 	if (freq == 0)
 	{
 		printf("[led_server] Freq is 0, turning LED off\n");
-		retval = write(file_id, LED_OFF_STR, strlen(LED_OFF_STR));
+		sprintf(to_send, "freq:0");
+		retval = write(file_id, to_send, strlen(LED_OFF_STR));
 		if (retval < 0 )
 		{
 			printf("[led_server] Failed to write to driver!\n");
@@ -204,8 +251,8 @@ int set_led_freq(int file_id, int freq)
 	}
 	else
 	{
-		/* TODO FIXME make this do freq */
-		retval = write(file_id, LED_OFF_STR, strlen(LED_OFF_STR));
+		sprintf(to_send, "freq:%d", freq);
+		retval = write(file_id, to_send, strlen(to_send));
 		if (retval < 0 )
 		{
 			printf("[led_server] Failed to write to driver!\n");
@@ -222,7 +269,8 @@ int set_led_duty(int file_id, int duty)
 	if (duty == 100)
 	{
 		printf("[led_server] Duty cycle is 1, leaving LED on\n");
-		retval = write(file_id, LED_ON_STR, strlen(LED_ON_STR));
+		sprintf(to_send, "state:on");
+		retval = write(file_id, to_send, strlen(to_send));
 		if (retval < 0 )
 		{
 			printf("[led_server]Failed to write to driver!\n");
@@ -233,7 +281,8 @@ int set_led_duty(int file_id, int duty)
 	else if (duty == 0)
 	{
 		printf("[led_server] Duty cycle is 0, turning LED off\n");
-		retval = write(file_id, LED_OFF_STR, strlen(LED_OFF_STR));
+		sprintf(to_send, "state:off");
+		retval = write(file_id, to_send, strlen(to_send));
 		if (retval < 0 )
 		{
 			printf("[led_server] Failed to write to driver!\n");
@@ -244,18 +293,18 @@ int set_led_duty(int file_id, int duty)
 	}
 	else if ((duty > 100) || (duty < 1))
 	{
-		/* TODO do duty cycle correctly*/
-		retval = write(file_id, LED_ON_STR, strlen(LED_ON_STR));
+		printf("[led_server] Invalid LED duty cycle\n");
+		return 1;
+	}
+	else 
+	{
+		sprintf(to_send, "duty:%d", duty);
+		retval = write(file_id, to_send, strlen(to_send));
 		if (retval < 0 )
 		{
 			printf("[led_server] Failed to write to driver!\n");
 			return errno;
 		}
-	}
-	else
-	{
-		printf("[led_server] Invalid LED duty cycle\n");
-		return 1;
 	}
 	return 0;
 }

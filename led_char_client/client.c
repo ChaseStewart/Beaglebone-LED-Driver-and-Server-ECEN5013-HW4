@@ -35,9 +35,10 @@ int main(void)
 		/* get line of input from user */
 		printf("[led_client]What would you like to send?\n");
 		printf("\t\tType \'state\' to set LED state\n");		
-		printf("\t\tType \'read\' to read LED driver vars\n");		
-		printf("\t\tType \'freq\' to set LED flashing freq\n");		
-		printf("\t\tType \'duty\' to set LED duty cycle\n");		
+		printf("\t\tType \'read\'  to read LED driver vars\n");		
+		printf("\t\tType \'freq\'  to set LED flashing freq\n");
+		printf("\t\tType \'duty\'  to set LED duty cycle\n");		
+		printf("\t\tType \'exit\'  to close the program\n");		
 		scanf("%s", out_message);
 
 		/* parse user input and format message*/
@@ -67,8 +68,46 @@ int main(void)
 		}
 		else if (strcmp(out_message, "read") == 0)
 		{
-			printf("TODO Write this\n");
-			continue;
+			int correct_input = 0;
+			while(correct_input == 0)
+			{
+				printf("\t\tType \'all\' to get all vars \n");
+				printf("\t\tType \'state\' to get LED state \n");
+				printf("\t\tType \'freq\'  to get LED freq \n");
+				printf("\t\tType \'duty\'  to get LED duty \n");
+				printf("\t\tType \'exit\'  to return \n");
+				scanf("%s", out_message);
+				if (strcmp(out_message, "all") == 0)
+				{
+					sprintf(out_message, "read:%d", VAR_ALL);
+					correct_input = 1;
+				}
+				else if (strcmp(out_message, "state") == 0)
+				{
+					sprintf(out_message, "read:%d", VAR_STATE);
+					correct_input = 1;
+				}
+				else if (strcmp(out_message, "freq") == 0)
+				{
+					sprintf(out_message, "read:%d", VAR_FREQ);
+					correct_input = 1;
+				}
+				else if (strcmp(out_message, "duty") == 0)
+				{
+					sprintf(out_message, "read:%d", VAR_DUTY);
+					correct_input = 1;
+				}
+				else if (strcmp(out_message, "exit") == 0)
+				{
+					continue;
+				}
+				else
+				{
+					printf("\t\tInvalid selection!\n");
+					continue;
+				}
+			}
+		
 		}
 		else if (strcmp(out_message, "freq") == 0)
 		{
@@ -124,6 +163,11 @@ int main(void)
 				}
 			}
 		}
+		else if (strcmp(out_message, "exit") == 0)
+		{
+			client_state = STATE_STOPPED;
+			break;
+		}
 		printf("[led_client] Sending \"%s\"\n", out_message);
 
 		/* send message and listen for ACK/NACK */
@@ -140,146 +184,13 @@ int main(void)
 		printf("[led_client] Received <%s>\n", in_message);
 	}
 	
-	printf("[led_client] Terminating client");
+	if (client_state == STATE_ERROR)
+	{
+		printf("[led_client] EXIT WITH ERROR\n");
+	}
+
+	printf("[led_client] Terminating client\n");
 	close(socket_id);
 	return client_state;
-}
-
-
-
-int req_driver_var(int var_id)
-{
-	switch (var_id)
-	{
-		case VAR_1:
-			printf("[led_client] Would have read var 1\n");
-			break;
-		case VAR_2:
-			printf("[led_client] Would have read var 2\n");
-			break;
-		case VAR_3:
-			printf("[led_client] Would have read var 3\n");
-			break;
-		default:
-			printf("[led_client] Invalid input!\n");
-			break;
-	}
-	return 0;
-}
-
-int read_all_driver_vars(void)
-{
-	/* TODO read all vars one-at-a-time */
-	return 0;
-}
-
-int set_led_state(int state)
-{
-	int retval;
-
-	if (state == 1)
-	{
-		retval = write(file_id, LED_ON_STR, strlen(LED_ON_STR));
-		if (retval < 0 )
-		{
-			printf("[led_client] Failed to write to driver!\n");
-			return errno;
-		}
-	}
-	else if (state == 0)
-	{
-		retval = write(file_id, LED_OFF_STR, strlen(LED_OFF_STR));
-		if (retval < 0 )
-		{
-			printf("[led_client] Failed to write to driver!\n");
-			return errno;
-		}
-	}
-	else
-	{
-		printf("[led_client] Invalid LED state\n");
-		return 1;
-	}
-	return 0;
-
-}
-
-
-int set_led_freq(int freq)
-{
-	int retval;
-
-	if (freq == 0)
-	{
-		printf("[led_client] Freq is 0, turning LED off\n");
-		retval = write(file_id, LED_OFF_STR, strlen(LED_OFF_STR));
-		if (retval < 0 )
-		{
-			printf("[led_client] Failed to write to driver!\n");
-			return errno;
-		}
-		return 0;	
-	}
-	else if (freq > 1000 || freq < 1)
-	{
-		printf("[led_client] Invalid freq %d: Valid range between 1-1000\n", freq);
-		return 1;	
-	}
-	else
-	{
-		/* TODO FIXME make this do freq */
-		retval = write(file_id, LED_OFF_STR, strlen(LED_OFF_STR));
-		if (retval < 0 )
-		{
-			printf("[led_client] Failed to write to driver!\n");
-			return errno;
-		}
-		return 0;
-	}
-
-}
-
-int set_led_duty(int duty)
-{
-	int retval;
-	if (duty == 100)
-	{
-		printf("[led_client] Duty cycle is 1, leaving LED on\n");
-		retval = write(file_id, LED_ON_STR, strlen(LED_ON_STR));
-		if (retval < 0 )
-		{
-			printf("[led_client]Failed to write to driver!\n");
-			return errno;
-		}
-		return 0;	
-	}
-	else if (duty == 0)
-	{
-		printf("[led_client] Duty cycle is 0, turning LED off\n");
-		retval = write(file_id, LED_OFF_STR, strlen(LED_OFF_STR));
-		if (retval < 0 )
-		{
-			printf("[led_client] Failed to write to driver!\n");
-			return errno;
-		}
-		return 0;	
-		
-	}
-	else if ((duty > 100) || (duty < 1))
-	{
-		/* TODO do duty cycle correctly*/
-		retval = write(file_id, LED_ON_STR, strlen(LED_ON_STR));
-		if (retval < 0 )
-		{
-			printf("[led_client] Failed to write to driver!\n");
-			return errno;
-		}
-	}
-	else
-	{
-		printf("[led_client] Invalid LED duty cycle\n");
-		return 1;
-	}
-	return 0;
 }
 

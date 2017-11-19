@@ -23,6 +23,8 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/timer.h>
+#include <linux/string.h>
+#include <linux/slab.h>
 #include <linux/gpio.h>
 #include <linux/interrupt.h>
 #include <linux/uaccess.h>
@@ -31,6 +33,8 @@
 /* device vars*/
 #define DEVICE_NAME "myledchar"
 #define CLASS_NAME  "myled"
+#define INPUT_LEN 1024
+#define DELIM_STR ":\t\n"
 
 /* GPIO vars */
 #define LED_GPIO 49
@@ -61,9 +65,16 @@ static struct file_operations fops =
 
 /* state vars */
 static bool led_state      = 0;
-static int  driver_number  = 0;
-static char   message[256] = {0};           
-static int    numberOpens  = 0;              
+static int  led_freq       = 0;
+static int  led_duty       = 0;
+static int  num_opens      = 0;
+
+/* class-related vars */
+static char   *strsep_input;           
+static char   *first_word;
+static char   *second_word;
+static int    driver_number      = 0;
+static char   message[INPUT_LEN] = {0};           
 static struct class*  ledDriverClass  = NULL; 
 static struct device* ledDriverDevice = NULL; 
 
@@ -122,8 +133,8 @@ static int __init init_led_driver(void){
  */
 static int dev_open(struct inode *inodep, struct file *filep)
 {
-	numberOpens++;
-	printk(KERN_INFO "[led_driver] LED Driver has been accessed %d times\n", numberOpens );
+	num_opens++;
+	printk(KERN_INFO "[led_driver] LED Driver has been accessed %d times\n", num_opens );
 	return 0;
 }
 
@@ -132,17 +143,15 @@ static int dev_open(struct inode *inodep, struct file *filep)
  */
 static int dev_read(struct file *myfile, char *mybuffer, size_t len, loff_t *myoffset)
 {
-	switch(led_state)
+	int retval;
+	char mystring[INPUT_LEN];
+	sprintf(mystring, "%d:%d:%d:%d\n", led_state, led_freq, led_duty, num_opens);
+
+	retval = copy_to_user(mybuffer, mystring, strlen(mystring));
+	if (retval != 0)
 	{
-		case LED_OFF:
-			printk(KERN_INFO "[led_driver] LED State is off\n");
-			break;
-		case LED_ON:
-			printk(KERN_INFO "[led_driver] LED State is on\n");
-			break;
-		default:
-			printk(KERN_ALERT "[led_driver] What happened?\n");
-			break;
+		printk(KERN_ERR "[led_driver] Failed to copy %d bytes to user\n", retval);
+		return 1;
 	}
 	return 0;
 }
@@ -155,68 +164,53 @@ static int dev_read(struct file *myfile, char *mybuffer, size_t len, loff_t *myo
 static int dev_write(struct file *myfile, const char *mybuffer, size_t len, loff_t *myoffset)
 {
 	int retval;
-
-
-	retval = copy_from_user(message, mybuffer, len-1);
+	
+	retval = copy_from_user(message, mybuffer, len);
 	if (retval != 0)
 	{
-		printk(KERN_ERR "[led_driver] Failed to copy to user\n");
+		printk(KERN_ERR "[led_driver] Failed to copy %d bytes from user\n", retval);
 		return 1;
 	}
-	
-	printk(KERN_INFO "[led_driver] LED Driver received message <%s>\n", message);
-	if (strcmp(message, "on"))
+
+	strsep_input = (char *) kmalloc(strlen(message), GFP_KERNEL);
+	strncpy(strsep_input, message, strlen(message));
+
+	first_word = strsep(&strsep_input, DELIM_STR);
+	if (strcmp(first_word, "state") == 0)
 	{
-		led_state = LED_ON;
-		gpio_set_value(LED_GPIO, LED_ON);
-		printk(KERN_INFO "[led_driver] Setting LED On\n");
-	}
-	else if (strcmp(message, "On"))
+		second_word = strsep(&strsep_input, DELIM_STR);
+		if (strcmp(second_word, "on") == 0)
+		{
+			led_state = LED_ON;
+			gpio_set_value(LED_GPIO, LED_ON);
+			printk(KERN_INFO "[led_driver] Setting LED On\n");
+		}
+		else if (strcmp(second_word, "off") == 0)
+		{
+			led_state = LED_OFF;
+			gpio_set_value(LED_GPIO, LED_OFF);
+			printk(KERN_INFO "[led_driver] Setting LED Off\n");
+		}
+		else
+		{
+			printk(KERN_ALERT "[led_driver] Driver received invalid response\n");
+		}
+	}	
+	else if (strcmp(first_word, "freq") == 0)
 	{
-		led_state = LED_ON;
-		gpio_set_value(LED_GPIO, LED_ON);
-		printk(KERN_INFO "[led_driver] Setting LED On\n");
+		second_word = strsep(&strsep_input, DELIM_STR);
+		sscanf(second_word, "%d", &led_freq);
+		printk(KERN_INFO "[led_driver] setting led freq to %d\n", led_freq);
+		/*TODO actually set timer*/
 	}
-	else if (strcmp(message, "ON"))
+	else if (strcmp(first_word, "duty") == 0)
 	{
-		led_state = LED_ON;
-		gpio_set_value(LED_GPIO, LED_ON);
-		printk(KERN_INFO "[led_driver] Setting LED On\n");
+		second_word = strsep(&strsep_input, DELIM_STR);
+		sscanf(second_word, "%d", &led_duty);
+		printk(KERN_INFO "[led_driver] Setting led duty cycle to %d\n", led_duty);
+		/*TODO actually set timer*/
 	}
-	else if (strcmp(message, "1"))
-	{
-		led_state = LED_ON;
-		gpio_set_value(LED_GPIO, LED_ON);
-		printk(KERN_INFO "[led_driver] Setting LED On\n");
-	}
-	else if (strcmp(message, "off"))
-	{
-		led_state = LED_OFF;
-		gpio_set_value(LED_GPIO, LED_OFF);
-		printk(KERN_INFO "[led_driver] Setting LED Off\n");
-	}
-	else if (strcmp(message, "Off"))
-	{
-		led_state = LED_OFF;
-		gpio_set_value(LED_GPIO, LED_OFF);
-		printk(KERN_INFO "[led_driver] Setting LED Off\n");
-	}
-	else if (strcmp(message, "OFF"))
-	{
-		led_state = LED_OFF;
-		gpio_set_value(LED_GPIO, LED_OFF);
-		printk(KERN_INFO "[led_driver] Setting LED Off\n");
-	}
-	else if (strcmp(message, "0"))
-	{
-		led_state = LED_OFF;
-		gpio_set_value(LED_GPIO, LED_OFF);
-		printk(KERN_INFO "[led_driver] Setting LED Off\n");
-	}
-	else
-	{
-		printk(KERN_ALERT "[led_driver] Driver received invalid response\n");
-	}
+
 	return len;
 }
 
