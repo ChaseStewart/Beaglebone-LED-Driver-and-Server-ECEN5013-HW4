@@ -60,12 +60,12 @@ static struct file_operations fops =
 };
 
 /* state vars */
-static bool led_state = 0;
-static int  driver_number;
+static bool led_state      = 0;
+static int  driver_number  = 0;
 static char   message[256] = {0};           
-static int    numberOpens = 0;              
-static struct class*  ledDriverClass  = NULL; ///< The device-driver class struct pointer
-static struct device* ledDriverDevice = NULL; ///< The device-driver device struct pointer
+static int    numberOpens  = 0;              
+static struct class*  ledDriverClass  = NULL; 
+static struct device* ledDriverDevice = NULL; 
 
 
 
@@ -92,7 +92,7 @@ static int __init init_led_driver(void){
 		return driver_number;
 	}
 	printk(KERN_INFO "[led_driver] registered the driver with driver number %d\n", driver_number);
-	
+
 	/* attempt to register the device with the driver number */
 	ledDriverClass = class_create(THIS_MODULE, CLASS_NAME);
 	if (IS_ERR(ledDriverClass))
@@ -115,6 +115,88 @@ static int __init init_led_driver(void){
 	return 0;
 }
 
+static int dev_open(struct inode *inodep, struct file *filep)
+{
+	numberOpens++;
+	printk(KERN_INFO "[led_driver] LED Driver has been accessed %d times\n", numberOpens );
+	return 0;
+}
+
+static int dev_read(struct file *myfile, char *mybuffer, size_t len, loff_t *myoffset)
+{
+	switch(led_state)
+	{
+		case LED_OFF:
+			printk(KERN_INFO "[led_driver] LED State is off\n");
+			break;
+		case LED_ON:
+			printk(KERN_INFO "[led_driver] LED State is on\n");
+			break;
+		default:
+			printk(KERN_ALERT "[led_driver] What happened?\n");
+			break;
+	}
+	return 0;
+}
+
+static int dev_write(struct file *myfile, const char *mybuffer, size_t len, loff_t *myoffset)
+{
+	sprintf(message, "%s(%zu letters)", mybuffer, len);
+	if (strcmp(message, "on"))
+	{
+		led_state = LED_ON;
+		gpio_set_value(LED_GPIO, LED_ON);
+	}
+	else if (strcmp(message, "On"))
+	{
+		led_state = LED_ON;
+		gpio_set_value(LED_GPIO, LED_ON);
+	}
+	else if (strcmp(message, "ON"))
+	{
+		led_state = LED_ON;
+		gpio_set_value(LED_GPIO, LED_ON);
+	}
+	else if (strcmp(message, "1"))
+	{
+		led_state = LED_ON;
+		gpio_set_value(LED_GPIO, LED_ON);
+	}
+	else if (strcmp(message, "off"))
+	{
+		led_state = LED_OFF;
+		gpio_set_value(LED_GPIO, LED_OFF);
+	}
+	else if (strcmp(message, "Off"))
+	{
+		led_state = LED_OFF;
+		gpio_set_value(LED_GPIO, LED_OFF);
+	}
+	else if (strcmp(message, "OFF"))
+	{
+		led_state = LED_OFF;
+		gpio_set_value(LED_GPIO, LED_OFF);
+	}
+	else if (strcmp(message, "0"))
+	{
+		led_state = LED_OFF;
+		gpio_set_value(LED_GPIO, LED_OFF);
+	}
+	else
+	{
+		printk(KERN_ALERT "[led_driver] Driver received invalid response\n");
+	}
+
+	printk(KERN_INFO "[led_driver] LED Driver received message \'%s\' \n", message);
+	return 0;
+}
+
+static int dev_release(struct inode *inodep, struct file *filep)
+{
+	printk(KERN_INFO "[led_driver] Closed the LED driver device\n");
+	return 0;
+}
+
 static int __init exit_led_driver(void){
 	printk(KERN_INFO "[led_driver] Closing  LED Driver\n");
 
@@ -130,33 +212,6 @@ static int __init exit_led_driver(void){
 	class_destroy(ledDriverClass);
 	unregister_chrdev(driver_number, DEVICE_NAME);
 	printk(KERN_INFO "[led_driver] LED Driver exit... Goodbye!\n");
-	return 0;
-}
-
-static int dev_open(struct inode *inodep, struct file *filep)
-{
-	numberOpens++;
-	printk(KERN_INFO "[led_driver] LED Driver has been accessed %d times\n", numberOpens );
-	return 0;
-}
-
-static int dev_read(struct file *myfile, char *mybuffer, size_t len, loff_t *myoffset)
-{
-
-	printk(KERN_INFO "[led_driver] LED Driver has been read!\n");
-	return 0;
-}
-
-static int dev_write(struct file *myfile, const char *mybuffer, size_t len, loff_t *myoffset)
-{
-	sprintf(message, "%s(%zu letters)", mybuffer, len);
-	printk(KERN_INFO "[led_driver] LED Driver received message \'%s\' \n", message);
-	return 0;
-}
-
-static int dev_release(struct inode *inodep, struct file *filep)
-{
-	printk(KERN_INFO "[led_driver] Closed the LED driver device\n");
 	return 0;
 }
 
