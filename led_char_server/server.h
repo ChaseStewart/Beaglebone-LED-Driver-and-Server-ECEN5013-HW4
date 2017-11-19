@@ -23,10 +23,13 @@
 /* commands */
 #define LED_ON_STR  "on"
 #define LED_OFF_STR "off"
+#define ACK_MSG "ACK"
+#define DELIM_STR ":\t\n"
 
-#define VAR_1 1
-#define VAR_2 2
-#define VAR_3 3
+#define VAR_ALL   1
+#define VAR_STATE 2
+#define VAR_FREQ  3
+#define VAR_DUTY  4
 
 
 /*prototypes*/

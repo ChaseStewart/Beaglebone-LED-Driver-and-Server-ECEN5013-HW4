@@ -32,8 +32,101 @@ int main(void)
 
 	while (client_state == STATE_RUNNING)
 	{
-		printf("What would you like to send?\n");
+		/* get line of input from user */
+		printf("[led_client]What would you like to send?\n");
+		printf("\t\tType \'state\' to set LED state\n");		
+		printf("\t\tType \'read\' to read LED driver vars\n");		
+		printf("\t\tType \'freq\' to set LED flashing freq\n");		
+		printf("\t\tType \'duty\' to set LED duty cycle\n");		
 		scanf("%s", out_message);
+
+		/* parse user input and format message*/
+		if (strcmp(out_message, "state") == 0)
+		{
+			int correct_input = 0;
+			while(correct_input == 0)
+			{
+				printf("\t\tSet LED \'on\' or \'off\'?\n");
+				scanf("%s", out_message);
+				if (strcmp(out_message, "on") == 0)
+				{
+					sprintf(out_message, "state:on");
+					correct_input = 1;
+				}
+				else if (strcmp(out_message, "off") == 0)
+				{
+					sprintf(out_message, "state:off");
+					correct_input = 1;
+				}
+				else
+				{
+					printf("\t\tInvalid selection!\n");
+					continue;
+				}
+			}
+		}
+		else if (strcmp(out_message, "read") == 0)
+		{
+			printf("TODO Write this\n");
+			continue;
+		}
+		else if (strcmp(out_message, "freq") == 0)
+		{
+			int freq_val = 0;
+			while(freq_val == 0)
+			{
+				printf("\t\tEnter freq between 1-1000Hz\n");
+				scanf("%s", out_message);
+				if (sscanf(out_message, "%d", &freq_val) >= 0)
+				{
+					/*set freq val*/
+					if (freq_val < 0 || freq_val > 1000)
+					{
+						printf("\t\tInvalid selection!\n");
+						freq_val = 0;
+					}
+					else
+					{
+						sprintf(out_message, "freq:%d", freq_val);
+					}
+				}
+				else
+				{
+					printf("\t\tInvalid selection!\n");
+					freq_val = 0;
+				}
+			}
+		}
+		else if (strcmp(out_message, "duty") == 0)
+		{
+			int duty_val = 0;
+			while(duty_val == 0)
+			{
+				printf("\t\tEnter duty cycle between 1-100\n");
+				scanf("%s", out_message);
+				if (sscanf(out_message, "%d", &duty_val) >= 0)
+				{
+					/*set duty val*/
+					if (duty_val < 0 || duty_val > 100)
+					{
+						printf("\t\tInvalid selection!\n");
+						duty_val = 0;
+					}
+					else
+					{
+						sprintf(out_message, "duty:%d", duty_val);
+					}
+				}
+				else
+				{
+					printf("\t\tInvalid selection!\n");
+					duty_val = 0;
+				}
+			}
+		}
+		printf("[led_client] Sending \"%s\"\n", out_message);
+
+		/* send message and listen for ACK/NACK */
 		if(send(socket_id, out_message, INPUT_LEN, 0) < 0)
 		{
 			printf("[led_client] Failed to send to remote server");
@@ -44,6 +137,7 @@ int main(void)
 			printf("[led_client] Failed to receive from remote server");
 			client_state = STATE_ERROR;
 		}
+		printf("[led_client] Received <%s>\n", in_message);
 	}
 	
 	printf("[led_client] Terminating client");
