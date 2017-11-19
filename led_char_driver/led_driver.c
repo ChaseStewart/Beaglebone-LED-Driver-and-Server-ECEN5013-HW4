@@ -6,7 +6,6 @@
  * the University of Colorado and Chase E Stewart are not liable for any misuse of this material. 
  * License copyright (C) 2017 originally from Alex Fosdick, code by Chase E Stewart.
  *****************************************************/
-
 /*
  * @file led_driver.c
  * @brief A driver to control Beaglebone LEDs in userspace 
@@ -26,7 +25,9 @@
 #include <linux/timer.h>
 #include <linux/gpio.h>
 #include <linux/interrupt.h>
+#include <linux/uaccess.h>
 #include <linux/fs.h>
+
 
 /* device vars*/
 #define DEVICE_NAME "myledchar"
@@ -80,8 +81,8 @@ static int __init init_led_driver(void){
 		printk(KERN_ERR "[led_driver] Invalid GPIO pin provided\n");
 		return 1;
 	}
-	gpio_request(LED_GPIO, "sysfs");
 	led_state = LED_ON;
+	gpio_request(LED_GPIO, "sysfs");
 	gpio_direction_output(LED_GPIO, LED_ON);
 	gpio_export(LED_GPIO, false);
 	printk(KERN_INFO "[led_driver] LED GPIO pins Initialized\n");
@@ -115,7 +116,7 @@ static int __init init_led_driver(void){
 		printk(KERN_ERR "Failed to create device!\n");
 		return PTR_ERR(ledDriverDevice);
 	}
-	printk(KERN_INFO "[led_driver] Successfully initialized the driver");
+	printk(KERN_INFO "[led_driver] Successfully initialized the driver\n");
 	return 0;
 }
 
@@ -156,55 +157,65 @@ static int dev_read(struct file *myfile, char *mybuffer, size_t len, loff_t *myo
  */
 static int dev_write(struct file *myfile, const char *mybuffer, size_t len, loff_t *myoffset)
 {
-	sprintf(message, "%s(%zu letters)", mybuffer, len);
+	int retval;
+
+
+	retval = copy_from_user(mybuffer, message, len);
+	if (retval != 0)
+	{
+		printk(KERN_ERR "[led_driver] Failed to copy to user\n");
+		return 1;
+	}
+	
+	// sprintf(message, "%s(%zu letters)", mybuffer, len-1);
 	printk(KERN_INFO "[led_driver] LED Driver received message <%s>\n", message);
 	if (strcmp(message, "on"))
 	{
 		led_state = LED_ON;
 		gpio_set_value(LED_GPIO, LED_ON);
-		printk(KERN_INFO, "Setting LED On\n");
+		printk(KERN_INFO "Setting LED On\n");
 	}
 	else if (strcmp(message, "On"))
 	{
 		led_state = LED_ON;
 		gpio_set_value(LED_GPIO, LED_ON);
-		printk(KERN_INFO, "Setting LED On\n");
+		printk(KERN_INFO "Setting LED On\n");
 	}
 	else if (strcmp(message, "ON"))
 	{
 		led_state = LED_ON;
 		gpio_set_value(LED_GPIO, LED_ON);
-		printk(KERN_INFO, "Setting LED On\n");
+		printk(KERN_INFO "Setting LED On\n");
 	}
 	else if (strcmp(message, "1"))
 	{
 		led_state = LED_ON;
 		gpio_set_value(LED_GPIO, LED_ON);
-		printk(KERN_INFO, "Setting LED On\n");
+		printk(KERN_INFO "Setting LED On\n");
 	}
 	else if (strcmp(message, "off"))
 	{
 		led_state = LED_OFF;
 		gpio_set_value(LED_GPIO, LED_OFF);
-		printk(KERN_INFO, "Setting LED Off\n");
+		printk(KERN_INFO "Setting LED Off\n");
 	}
 	else if (strcmp(message, "Off"))
 	{
 		led_state = LED_OFF;
 		gpio_set_value(LED_GPIO, LED_OFF);
-		printk(KERN_INFO, "Setting LED Off\n");
+		printk(KERN_INFO "Setting LED Off\n");
 	}
 	else if (strcmp(message, "OFF"))
 	{
 		led_state = LED_OFF;
 		gpio_set_value(LED_GPIO, LED_OFF);
-		printk(KERN_INFO, "Setting LED Off\n");
+		printk(KERN_INFO "Setting LED Off\n");
 	}
 	else if (strcmp(message, "0"))
 	{
 		led_state = LED_OFF;
 		gpio_set_value(LED_GPIO, LED_OFF);
-		printk(KERN_INFO, "Setting LED Off\n");
+		printk(KERN_INFO "Setting LED Off\n");
 	}
 	else
 	{
@@ -230,7 +241,7 @@ static int dev_release(struct inode *inodep, struct file *filep)
 /*
  * On exit, free GPIO and driver resources and log a result message
  */
-static int __init exit_led_driver(void){
+static void __exit exit_led_driver(void){
 	printk(KERN_INFO "[led_driver] Closing  LED Driver\n");
 
 	/* First, free GPIO resources */
@@ -241,11 +252,18 @@ static int __init exit_led_driver(void){
 
 	/* Now destroy driver */
 	device_destroy(ledDriverClass, MKDEV(driver_number, 0));
+	printk(KERN_INFO "[led_driver] destroyed device\n");
+	
 	class_unregister(ledDriverClass);
+	printk(KERN_INFO "[led_driver] unregistered class\n");
+
 	class_destroy(ledDriverClass);
+	printk(KERN_INFO "[led_driver] destroyed class\n");
+
 	unregister_chrdev(driver_number, DEVICE_NAME);
+	printk(KERN_INFO "[led_driver] unregistered chrdev\n");
+
 	printk(KERN_INFO "[led_driver] LED Driver exit... Goodbye!\n");
-	return 0;
 }
 
 
