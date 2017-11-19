@@ -1,28 +1,56 @@
 
 #include "server.h"
 
-//static char from_driver[BUFFER_LEN];
+static char in_message[INPUT_LEN];
+int server_state = STATE_RUNNING;
 
 int main(void)
 {
-	int retval, fileptr;
+	int socket_id, file_id;
+	struct sockaddr_in led_server;
 
-	fileptr = open(DRIVER_PATH, O_RDWR);
-	if( fileptr < 0)
+	file_id = open(DRIVER_PATH, O_RDWR);
+	if( file_id < 0)
 	{
 		printf("[led_server] Failed to open device at %s\n", DRIVER_PATH);
 		return errno;
 	}
 
 	/* establish socket */
+	socket_id = socket(AF_INET, SOCK_STREAM, 0);
+	if (socket_id == -1)
+	{
+		printf("[led_server] could not create socket\n");
+	}
 
-	retval = 0;
-	return retval;
+	led_server.sin_addr.s_addr = inet_addr(LED_SERVER_HOST);
+	led_server.sin_family = AF_INET;
+	led_server.sin_port = htons(LED_SERVER_PORT);
+	
+	printf("Listening on %s:%d\n", LED_SERVER_HOST, LED_SERVER_PORT);
+
+	if (connect(socket_id, (struct sockaddr *)&led_server, sizeof(led_server)) < 0)
+	{
+		printf("[led_server] Failed to connect to remove server\n");
+		return 1;
+	}
+	while (server_state == STATE_RUNNING)
+	{
+		if(recv(socket_id, in_message, INPUT_LEN, 0) < 0)
+		{
+			printf("[led_server] Failed to receive from remote server");
+			server_state = STATE_ERROR;
+		}
+	}
+	
+	printf("[led_server] Terminating server");
+	close(socket_id);
+	return server_state;
 }
 
 
 
-int read_driver_var(int fileptr, int var_id)
+int read_driver_var(int file_id, int var_id)
 {
 	switch (var_id)
 	{
@@ -42,19 +70,19 @@ int read_driver_var(int fileptr, int var_id)
 	return 0;
 }
 
-int read_all_driver_vars(int fileptr)
+int read_all_driver_vars(int file_id)
 {
 	/* TODO read all vars one-at-a-time */
 	return 0;
 }
 
-int set_led_state(int fileptr, int state)
+int set_led_state(int file_id, int state)
 {
 	int retval;
 
 	if (state == 1)
 	{
-		retval = write(fileptr, LED_ON_STR, strlen(LED_ON_STR));
+		retval = write(file_id, LED_ON_STR, strlen(LED_ON_STR));
 		if (retval < 0 )
 		{
 			printf("[led_server] Failed to write to driver!\n");
@@ -63,7 +91,7 @@ int set_led_state(int fileptr, int state)
 	}
 	else if (state == 0)
 	{
-		retval = write(fileptr, LED_OFF_STR, strlen(LED_OFF_STR));
+		retval = write(file_id, LED_OFF_STR, strlen(LED_OFF_STR));
 		if (retval < 0 )
 		{
 			printf("[led_server] Failed to write to driver!\n");
@@ -80,14 +108,14 @@ int set_led_state(int fileptr, int state)
 }
 
 
-int set_led_freq(int fileptr, int freq)
+int set_led_freq(int file_id, int freq)
 {
 	int retval;
 
 	if (freq == 0)
 	{
 		printf("[led_server] Freq is 0, turning LED off\n");
-		retval = write(fileptr, LED_OFF_STR, strlen(LED_OFF_STR));
+		retval = write(file_id, LED_OFF_STR, strlen(LED_OFF_STR));
 		if (retval < 0 )
 		{
 			printf("[led_server] Failed to write to driver!\n");
@@ -103,7 +131,7 @@ int set_led_freq(int fileptr, int freq)
 	else
 	{
 		/* TODO FIXME make this do freq */
-		retval = write(fileptr, LED_OFF_STR, strlen(LED_OFF_STR));
+		retval = write(file_id, LED_OFF_STR, strlen(LED_OFF_STR));
 		if (retval < 0 )
 		{
 			printf("[led_server] Failed to write to driver!\n");
@@ -114,13 +142,13 @@ int set_led_freq(int fileptr, int freq)
 
 }
 
-int set_led_duty(int fileptr, int duty)
+int set_led_duty(int file_id, int duty)
 {
 	int retval;
 	if (duty == 100)
 	{
 		printf("[led_server] Duty cycle is 1, leaving LED on\n");
-		retval = write(fileptr, LED_ON_STR, strlen(LED_ON_STR));
+		retval = write(file_id, LED_ON_STR, strlen(LED_ON_STR));
 		if (retval < 0 )
 		{
 			printf("[led_server]Failed to write to driver!\n");
@@ -131,7 +159,7 @@ int set_led_duty(int fileptr, int duty)
 	else if (duty == 0)
 	{
 		printf("[led_server] Duty cycle is 0, turning LED off\n");
-		retval = write(fileptr, LED_OFF_STR, strlen(LED_OFF_STR));
+		retval = write(file_id, LED_OFF_STR, strlen(LED_OFF_STR));
 		if (retval < 0 )
 		{
 			printf("[led_server] Failed to write to driver!\n");
@@ -143,7 +171,7 @@ int set_led_duty(int fileptr, int duty)
 	else if ((duty > 100) || (duty < 1))
 	{
 		/* TODO do duty cycle correctly*/
-		retval = write(fileptr, LED_ON_STR, strlen(LED_ON_STR));
+		retval = write(file_id, LED_ON_STR, strlen(LED_ON_STR));
 		if (retval < 0 )
 		{
 			printf("[led_server] Failed to write to driver!\n");

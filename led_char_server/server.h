@@ -5,10 +5,19 @@
 #include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
 /* general vars*/
-#define BUFFER_LEN 256
+#define INPUT_LEN 512
 #define DRIVER_PATH "/dev/myledchar"
+
+#define LED_SERVER_HOST "127.0.0.1"
+#define LED_SERVER_PORT 50010
+
+#define STATE_RUNNING 1
+#define STATE_STOPPED 0
+#define STATE_ERROR   -1
 
 /* commands */
 #define LED_ON_STR  "on"
