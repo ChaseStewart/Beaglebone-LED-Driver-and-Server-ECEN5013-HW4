@@ -27,6 +27,9 @@ int main(void)
 		printf("[led_client] Failed to connect to remote server\n");
 		return 1;
 	}
+
+	printf("[led_client] Connected!\n");
+
 	while (client_state == STATE_RUNNING)
 	{
 		printf("What would you like to send?\n");

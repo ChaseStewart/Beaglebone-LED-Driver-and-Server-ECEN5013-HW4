@@ -1,0 +1,10 @@
+led_char_server/server
+led_char_client/client
+led_char_driver/*.mod
+led_char_driver/*.mod.c
+led_char_driver/*.cmd
+led_char_driver/*.ko
+led_char_driver/*.o
+led_char_driver/*.symvers
+led_char_driver/.tmp_versions
+led_char_driver/modules.order

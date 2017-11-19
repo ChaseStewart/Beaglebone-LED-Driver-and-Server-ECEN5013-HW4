@@ -14,6 +14,7 @@
 
 #define LED_SERVER_HOST "127.0.0.1"
 #define LED_SERVER_PORT 50010
+#define MAX_NUM_CONNS   5
 
 #define STATE_RUNNING 1
 #define STATE_STOPPED 0

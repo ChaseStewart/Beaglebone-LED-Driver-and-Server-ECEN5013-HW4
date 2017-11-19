@@ -6,7 +6,7 @@ int server_state = STATE_RUNNING;
 
 int main(void)
 {
-	int socket_id, file_id;
+	int socket_id, client_id, file_id, retval, client_sockaddr_len;
 	struct sockaddr_in led_server;
 
 	file_id = open(DRIVER_PATH, O_RDWR);
@@ -27,23 +27,46 @@ int main(void)
 	led_server.sin_family = AF_INET;
 	led_server.sin_port = htons(LED_SERVER_PORT);
 	
-	printf("Listening on %s:%d\n", LED_SERVER_HOST, LED_SERVER_PORT);
 
-	if (connect(socket_id, (struct sockaddr *)&led_server, sizeof(led_server)) < 0)
+	if (bind(socket_id, (struct sockaddr *)&led_server, sizeof(led_server)) < 0)
 	{
-		printf("[led_server] Failed to connect to remove server\n");
+		printf("[led_server] Failed to bind to port %d\n", LED_SERVER_PORT);
 		return 1;
 	}
+	listen(socket_id, MAX_NUM_CONNS);
+	printf("[led_server] Listening on %s:%d\n", LED_SERVER_HOST, LED_SERVER_PORT);
+
+	client_sockaddr_len = sizeof(struct sockaddr_in);
+
+	client_id = accept(socket_id, (struct sockaddr *)&client_id, (socklen_t *)&client_sockaddr_len );
+	if (client_id < 0)
+	{
+		printf("[led_server] Failed to accept connection\n");
+		return 1;
+	}
+	printf("[led_server] Connected!\n");
+
+	/* Now enter receiving loop from client */
 	while (server_state == STATE_RUNNING)
 	{
-		if(recv(socket_id, in_message, INPUT_LEN, 0) < 0)
+		retval = recv(client_id, in_message, INPUT_LEN, 0);
+		if(retval < 0)
 		{
-			printf("[led_server] Failed to receive from remote server");
+			printf("[led_server] Failed to receive from remote server, got value %d and errno %d \n", retval, errno);
 			server_state = STATE_ERROR;
+		}
+		else if (retval == 0 )
+		{
+			printf("[led_server] Connection closed by client\n");
+			server_state = STATE_STOPPED;
+		}
+		else 
+		{
+			printf("[led_server] Received <%s>\n", in_message);
 		}
 	}
 	
-	printf("[led_server] Terminating server");
+	printf("[led_server] Terminating server\n");
 	close(socket_id);
 	return server_state;
 }
