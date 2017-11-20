@@ -88,7 +88,7 @@ int main(void)
 		}
 		else 
 		{
-			printf("[led_server] Received <%s>\n", in_message);
+			//printf("[led_server] Received <%s>\n", in_message);
 			first_word = strtok(in_message, DELIM_STR);
 			if (strcmp(first_word, "read") == 0)
 			{
@@ -199,7 +199,7 @@ int set_led_state(int file_id, int state)
 	if (state == 1)
 	{
 		printf("[led_server] Setting LED ON\n");
-		sprintf(to_send, "state:on");
+		sprintf(to_send, "state:on\0");
 		retval = write(file_id, to_send, strlen(to_send));
 		if (retval < 0 )
 		{
@@ -210,7 +210,7 @@ int set_led_state(int file_id, int state)
 	else if (state == 0)
 	{
 		printf("[led_server] Setting LED OFF\n");
-		sprintf(to_send, "state:off");
+		sprintf(to_send, "state:off\0");
 		retval = write(file_id, to_send, strlen(to_send));
 		if (retval < 0 )
 		{
@@ -235,7 +235,7 @@ int set_led_freq(int file_id, int freq)
 	if (freq == 0)
 	{
 		printf("[led_server] Freq is 0, turning LED off\n");
-		sprintf(to_send, "freq:0");
+		sprintf(to_send, "state:off\0");
 		retval = write(file_id, to_send, strlen(LED_OFF_STR));
 		if (retval < 0 )
 		{
@@ -251,7 +251,7 @@ int set_led_freq(int file_id, int freq)
 	}
 	else
 	{
-		sprintf(to_send, "freq:%d", freq);
+		sprintf(to_send, "freq:%d\0", freq);
 		retval = write(file_id, to_send, strlen(to_send));
 		if (retval < 0 )
 		{
@@ -269,7 +269,7 @@ int set_led_duty(int file_id, int duty)
 	if (duty == 100)
 	{
 		printf("[led_server] Duty cycle is 1, leaving LED on\n");
-		sprintf(to_send, "state:on");
+		sprintf(to_send, "state:on\0");
 		retval = write(file_id, to_send, strlen(to_send));
 		if (retval < 0 )
 		{
@@ -281,7 +281,7 @@ int set_led_duty(int file_id, int duty)
 	else if (duty == 0)
 	{
 		printf("[led_server] Duty cycle is 0, turning LED off\n");
-		sprintf(to_send, "state:off");
+		sprintf(to_send, "state:off\0");
 		retval = write(file_id, to_send, strlen(to_send));
 		if (retval < 0 )
 		{

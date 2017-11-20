@@ -37,7 +37,7 @@
 #define DELIM_STR ":\t\n"
 
 /* GPIO vars */
-#define LED_GPIO 49
+#define LED_GPIO 24
 #define LED_ON   1
 #define LED_OFF  0 
 
@@ -69,14 +69,32 @@ static int  led_freq       = 0;
 static int  led_duty       = 0;
 static int  num_opens      = 0;
 
+static int  led_on_time    = 0;
+static int  led_off_time    = 0;
+
+static struct timer_list led_on_timer;
+static struct timer_list led_off_timer;
+
 /* class-related vars */
-static char   *strsep_input;           
 static char   *first_word;
 static char   *second_word;
 static int    driver_number      = 0;
-static char   message[INPUT_LEN] = {0};           
 static struct class*  ledDriverClass  = NULL; 
 static struct device* ledDriverDevice = NULL; 
+
+
+static void on_timer_tick(unsigned long data)
+{
+	int retval;
+	retval = mod_timer(&led_on_timer, jiffies+msecs_to_jiffies(led_on_time));
+}
+
+static void off_timer_tick(unsigned long data)
+{
+	int retval;
+	retval = mod_timer(&led_off_timer, jiffies+msecs_to_jiffies(led_off_time));
+}
+
 
 /*
  * Init LED driver needs to setup the LED, the driver
@@ -93,7 +111,7 @@ static int __init init_led_driver(void){
 	gpio_request(LED_GPIO, "sysfs");
 	gpio_direction_output(LED_GPIO, LED_ON);
 	gpio_export(LED_GPIO, false);
-	printk(KERN_INFO "[led_driver] LED GPIO pins Initialized\n");
+	printk(KERN_INFO "[led_driver] LED GPIO pin %d Initialized\n", LED_GPIO);
 
 	/* grab a major number for the device driver */
 	printk(KERN_INFO "[led_driver] Initiating LED Driver\n");
@@ -164,21 +182,25 @@ static int dev_read(struct file *myfile, char *mybuffer, size_t len, loff_t *myo
 static int dev_write(struct file *myfile, const char *mybuffer, size_t len, loff_t *myoffset)
 {
 	int retval;
+	char * char_message;
+	char * destruct_message;
 	
-	retval = copy_from_user(message, mybuffer, len);
+	char_message = (char *) kmalloc(INPUT_LEN, GFP_KERNEL);
+	destruct_message = (char *) kmalloc(INPUT_LEN, GFP_KERNEL);
+
+	retval = copy_from_user(char_message, mybuffer, len);
 	if (retval != 0)
 	{
 		printk(KERN_ERR "[led_driver] Failed to copy %d bytes from user\n", retval);
 		return 1;
 	}
 
-	strsep_input = (char *) kmalloc(strlen(message), GFP_KERNEL);
-	strncpy(strsep_input, message, strlen(message));
-
-	first_word = strsep(&strsep_input, DELIM_STR);
+	printk(KERN_INFO "char_message is <%s>\n", char_message);
+	strncpy(destruct_message, char_message, strlen(char_message));
+	first_word = strsep(&destruct_message, DELIM_STR);
 	if (strcmp(first_word, "state") == 0)
 	{
-		second_word = strsep(&strsep_input, DELIM_STR);
+		second_word = strsep(&destruct_message, DELIM_STR);
 		if (strcmp(second_word, "on") == 0)
 		{
 			led_state = LED_ON;
@@ -198,17 +220,19 @@ static int dev_write(struct file *myfile, const char *mybuffer, size_t len, loff
 	}	
 	else if (strcmp(first_word, "freq") == 0)
 	{
-		second_word = strsep(&strsep_input, DELIM_STR);
+		second_word = strsep(&destruct_message, DELIM_STR);
 		sscanf(second_word, "%d", &led_freq);
 		printk(KERN_INFO "[led_driver] setting led freq to %d\n", led_freq);
-		/*TODO actually set timer*/
+		led_on_time  = (int) led_freq / led_duty ;
+		led_off_time = (int) led_freq / (100 - led_duty);
 	}
 	else if (strcmp(first_word, "duty") == 0)
 	{
-		second_word = strsep(&strsep_input, DELIM_STR);
+		second_word = strsep(&destruct_message, DELIM_STR);
 		sscanf(second_word, "%d", &led_duty);
 		printk(KERN_INFO "[led_driver] Setting led duty cycle to %d\n", led_duty);
-		/*TODO actually set timer*/
+		led_on_time  = (int) led_freq / led_duty ;
+		led_off_time = (int) led_freq / (100 - led_duty);
 	}
 
 	return len;
