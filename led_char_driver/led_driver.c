@@ -45,7 +45,7 @@
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Chase E Stewart");
 MODULE_DESCRIPTION("A dead simple char driver for BBB LEDs");
-MODULE_VERSION("0.1");
+MODULE_VERSION("1.0");
 
 /* prototypes */
 static int dev_open(struct inode *, struct file *);
@@ -60,25 +60,26 @@ static struct file_operations fops =
 	.read = dev_read,
 	.write = dev_write,
 	.release = dev_release
-
 };
 
 /* state vars */
 static bool led_state      = 0;
 static int  led_freq       = 0;
 static int  led_duty       = 0;
+static int  led_period     = 0;
 static int  num_opens      = 0;
+static int  update_timers  = 0;
 
-static int  led_on_time    = 0;
-static int  led_off_time    = 0;
-
+/* led timer */
+static int  led_on_time  = 0;
+static int  led_off_time = 0;
 static struct timer_list led_on_timer;
 static struct timer_list led_off_timer;
 
 /* class-related vars */
 static char   *first_word;
 static char   *second_word;
-static int    driver_number      = 0;
+static int    driver_number = 0;
 static struct class*  ledDriverClass  = NULL; 
 static struct device* ledDriverDevice = NULL; 
 
@@ -86,13 +87,21 @@ static struct device* ledDriverDevice = NULL;
 static void on_timer_tick(unsigned long data)
 {
 	int retval;
-	retval = mod_timer(&led_on_timer, jiffies+msecs_to_jiffies(led_on_time));
+	if (update_timers)
+	{
+		retval = mod_timer(&led_off_timer, jiffies+msecs_to_jiffies(led_on_time));
+	}
+	gpio_set_value(LED_GPIO, LED_ON);
 }
 
 static void off_timer_tick(unsigned long data)
 {
 	int retval;
-	retval = mod_timer(&led_off_timer, jiffies+msecs_to_jiffies(led_off_time));
+	if (update_timers)
+	{
+		retval = mod_timer(&led_on_timer, jiffies+msecs_to_jiffies(led_off_time));
+	}
+	gpio_set_value(LED_GPIO, LED_OFF);
 }
 
 
@@ -143,6 +152,11 @@ static int __init init_led_driver(void){
 		return PTR_ERR(ledDriverDevice);
 	}
 	printk(KERN_INFO "[led_driver] Successfully initialized the driver\n");
+
+	setup_timer( &led_on_timer,  on_timer_tick,  0);
+	setup_timer( &led_off_timer, off_timer_tick, 0);
+	update_timers = 1;
+
 	return 0;
 }
 
@@ -198,43 +212,69 @@ static int dev_write(struct file *myfile, const char *mybuffer, size_t len, loff
 	printk(KERN_INFO "char_message is <%s>\n", char_message);
 	strncpy(destruct_message, char_message, strlen(char_message));
 	first_word = strsep(&destruct_message, DELIM_STR);
+	second_word = strsep(&destruct_message, DELIM_STR);
+	
+	printk(KERN_INFO "[led_driver] First word is <%s> and second word is <%s> \n", first_word, second_word);
+
 	if (strcmp(first_word, "state") == 0)
 	{
-		second_word = strsep(&destruct_message, DELIM_STR);
 		if (strcmp(second_word, "on") == 0)
 		{
 			led_state = LED_ON;
 			gpio_set_value(LED_GPIO, LED_ON);
+			update_timers = 0;
+			led_duty = 50;
 			printk(KERN_INFO "[led_driver] Setting LED On\n");
 		}
 		else if (strcmp(second_word, "off") == 0)
 		{
 			led_state = LED_OFF;
 			gpio_set_value(LED_GPIO, LED_OFF);
+			update_timers = 0;
+			led_duty = 50;
 			printk(KERN_INFO "[led_driver] Setting LED Off\n");
 		}
 		else
 		{
 			printk(KERN_ALERT "[led_driver] Driver received invalid response\n");
-			led_state = !led_state;
-			gpio_set_value(LED_GPIO, led_state);
+			update_timers = 0;
 		}
 	}	
 	else if (strcmp(first_word, "freq") == 0)
 	{
-		second_word = strsep(&destruct_message, DELIM_STR);
-		sscanf(second_word, "%d", &led_freq);
-		printk(KERN_INFO "[led_driver] setting led freq to %d\n", led_freq);
-		led_on_time  = (int) led_freq / led_duty ;
-		led_off_time = (int) led_freq / (100 - led_duty);
+		if ((led_freq >=0) && (led_freq <=1000) )
+		{
+			sscanf(second_word, "%d", &led_freq);
+			printk(KERN_INFO "[led_driver] setting led freq to %d\n", led_freq);
+			led_period   = (1000 / led_freq);
+			led_on_time  = (led_period * led_duty ) / ( 100 );
+			led_off_time = (led_period * (100-led_duty) ) / ( 100 );
+			printk(KERN_INFO "[led_driver] led period %d freq: %d duty: %d \n", led_period, led_freq, led_duty);
+			printk(KERN_INFO "[led_driver] led on-time: %d off-time: %d \n", led_on_time, led_off_time);
+			update_timers = 1;
+			mod_timer(&led_on_timer, jiffies+msecs_to_jiffies(led_on_time));
+		}
+		
 	}
 	else if (strcmp(first_word, "duty") == 0)
 	{
-		second_word = strsep(&destruct_message, DELIM_STR);
 		sscanf(second_word, "%d", &led_duty);
-		printk(KERN_INFO "[led_driver] Setting led duty cycle to %d\n", led_duty);
-		led_on_time  = (int) led_freq / led_duty ;
-		led_off_time = (int) led_freq / (100 - led_duty);
+		if ((led_duty >=0) && (led_duty <=100) )
+		{
+			printk(KERN_INFO "[led_driver] Setting led duty cycle to %d\n", led_duty);
+			led_period   = (1000 / led_freq);
+			led_on_time  = (led_period * led_duty ) / ( 100 );
+			led_off_time = (led_period * (100-led_duty) ) / ( 100 );
+			printk(KERN_INFO "[led_driver] led period %d freq: %d duty: %d \n", led_period, led_freq, led_duty);
+			printk(KERN_INFO "[led_driver] LED on-time: %d off-time: %d \n", led_on_time, led_off_time);
+			update_timers = 1;
+			mod_timer(&led_on_timer, jiffies+msecs_to_jiffies(led_on_time));
+		}
+		else
+		{
+			printk(KERN_ALERT "[led_driver] Tried to set duty cycle to invalid value %d\n", led_duty);
+			led_duty = 50;
+		}
 	}
 
 	return len;
@@ -278,6 +318,10 @@ static void __exit exit_led_driver(void){
 	unregister_chrdev(driver_number, DEVICE_NAME);
 	printk(KERN_INFO "[led_driver] unregistered chrdev\n");
 
+	update_timers = 0;
+	del_timer(&led_on_timer);
+	del_timer(&led_off_timer);
+	
 	printk(KERN_INFO "[led_driver] LED Driver exit... Goodbye!\n");
 }
 
