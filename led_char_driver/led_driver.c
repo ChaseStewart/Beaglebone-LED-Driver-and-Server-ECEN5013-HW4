@@ -45,7 +45,7 @@
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Chase E Stewart");
 MODULE_DESCRIPTION("A dead simple char driver for BBB LEDs");
-MODULE_VERSION("0.1");
+MODULE_VERSION("1.0");
 
 /* prototypes */
 static int dev_open(struct inode *, struct file *);
