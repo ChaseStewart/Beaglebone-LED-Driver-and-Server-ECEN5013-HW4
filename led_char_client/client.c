@@ -119,7 +119,7 @@ int main(void)
 				if (sscanf(out_message, "%d", &freq_val) >= 0)
 				{
 					/*set freq val*/
-					if (freq_val < 0 || freq_val > 1000)
+					if (freq_val <= 0 || freq_val >= 1000)
 					{
 						printf("\t\tInvalid selection!\n");
 						freq_val = 0;
@@ -146,7 +146,7 @@ int main(void)
 				if (sscanf(out_message, "%d", &duty_val) >= 0)
 				{
 					/*set duty val*/
-					if (duty_val < 0 || duty_val > 100)
+					if (duty_val =< 0 || duty_val >= 100)
 					{
 						printf("\t\tInvalid selection!\n");
 						duty_val = 0;

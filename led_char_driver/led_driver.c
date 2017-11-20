@@ -60,13 +60,13 @@ static struct file_operations fops =
 	.read = dev_read,
 	.write = dev_write,
 	.release = dev_release
-
 };
 
 /* state vars */
 static bool led_state      = 0;
 static int  led_freq       = 0;
-static int  led_duty       = 50;
+static int  led_duty       = 0;
+static int  led_period     = 0;
 static int  num_opens      = 0;
 static int  update_timers  = 0;
 
@@ -91,7 +91,6 @@ static void on_timer_tick(unsigned long data)
 	{
 		retval = mod_timer(&led_off_timer, jiffies+msecs_to_jiffies(led_on_time));
 	}
-	//printk("KERNEL_INFO [led_driver] set LED on\n");
 	gpio_set_value(LED_GPIO, LED_ON);
 }
 
@@ -102,7 +101,6 @@ static void off_timer_tick(unsigned long data)
 	{
 		retval = mod_timer(&led_on_timer, jiffies+msecs_to_jiffies(led_off_time));
 	}
-	//printk("KERNEL_INFO [led_driver] set LED off\n");
 	gpio_set_value(LED_GPIO, LED_OFF);
 }
 
@@ -214,9 +212,12 @@ static int dev_write(struct file *myfile, const char *mybuffer, size_t len, loff
 	printk(KERN_INFO "char_message is <%s>\n", char_message);
 	strncpy(destruct_message, char_message, strlen(char_message));
 	first_word = strsep(&destruct_message, DELIM_STR);
+	second_word = strsep(&destruct_message, DELIM_STR);
+	
+	printk(KERN_INFO "[led_driver] First word is <%s> and second word is <%s> \n", first_word, second_word);
+
 	if (strcmp(first_word, "state") == 0)
 	{
-		second_word = strsep(&destruct_message, DELIM_STR);
 		if (strcmp(second_word, "on") == 0)
 		{
 			led_state = LED_ON;
@@ -241,27 +242,39 @@ static int dev_write(struct file *myfile, const char *mybuffer, size_t len, loff
 	}	
 	else if (strcmp(first_word, "freq") == 0)
 	{
-		second_word = strsep(&destruct_message, DELIM_STR);
-		sscanf(second_word, "%d\0", &led_freq);
-		printk(KERN_INFO "[led_driver] setting led freq to %d\n", led_freq);
-		led_on_time  = (int)(1000 * led_freq) / led_duty ;
-		led_off_time = (int)(1000 * led_freq) / (100 - led_duty);
-		printk(KERN_INFO "[led_driver] led on-time: %d off-time: %d \n", led_on_time, led_off_time);
-		update_timers = 1;
-		mod_timer(&led_on_timer, jiffies+msecs_to_jiffies(led_on_time));
-		
+		if ((led_freq >=0) && (led_freq <=1000) )
+		{
+			sscanf(second_word, "%d", &led_freq);
+			printk(KERN_INFO "[led_driver] setting led freq to %d\n", led_freq);
+			led_period   = (1000 / led_freq);
+			led_on_time  = (led_period * led_duty ) / ( 100 );
+			led_off_time = (led_period * (100-led_duty) ) / ( 100 );
+			printk(KERN_INFO "[led_driver] led period %d freq: %d duty: %d \n", led_period, led_freq, led_duty);
+			printk(KERN_INFO "[led_driver] led on-time: %d off-time: %d \n", led_on_time, led_off_time);
+			update_timers = 1;
+			mod_timer(&led_on_timer, jiffies+msecs_to_jiffies(led_on_time));
+		}
 		
 	}
 	else if (strcmp(first_word, "duty") == 0)
 	{
-		second_word = strsep(&destruct_message, DELIM_STR);
-		sscanf(second_word, "%d\0", &led_duty);
-		printk(KERN_INFO "[led_driver] Setting led duty cycle to %d\n", led_duty);
-		led_on_time  = (int)(1000 * led_freq) / led_duty ;
-		led_off_time = (int)(1000 * led_freq) / (100 - led_duty);
-		printk(KERN_INFO "[led_driver] led on-time: %d off-time: %d \n", led_on_time, led_off_time);
-		update_timers = 1;
-		mod_timer(&led_on_timer, jiffies+msecs_to_jiffies(led_on_time));
+		sscanf(second_word, "%d", &led_duty);
+		if ((led_duty >=0) && (led_duty <=100) )
+		{
+			printk(KERN_INFO "[led_driver] Setting led duty cycle to %d\n", led_duty);
+			led_period   = (1000 / led_freq);
+			led_on_time  = (led_period * led_duty ) / ( 100 );
+			led_off_time = (led_period * (100-led_duty) ) / ( 100 );
+			printk(KERN_INFO "[led_driver] led period %d freq: %d duty: %d \n", led_period, led_freq, led_duty);
+			printk(KERN_INFO "[led_driver] LED on-time: %d off-time: %d \n", led_on_time, led_off_time);
+			update_timers = 1;
+			mod_timer(&led_on_timer, jiffies+msecs_to_jiffies(led_on_time));
+		}
+		else
+		{
+			printk(KERN_ALERT "[led_driver] Tried to set duty cycle to invalid value %d\n", led_duty);
+			led_duty = 50;
+		}
 	}
 
 	return len;
