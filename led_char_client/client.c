@@ -168,6 +168,11 @@ int main(void)
 			client_state = STATE_STOPPED;
 			break;
 		}
+		else
+		{
+			printf("[led_client] Invalid input %s!\n", out_message);
+			continue;
+		}
 		printf("[led_client] Sending \"%s\"\n", out_message);
 
 		/* send message and listen for ACK/NACK */

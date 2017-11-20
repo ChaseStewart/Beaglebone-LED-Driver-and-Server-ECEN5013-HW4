@@ -37,7 +37,7 @@
 #define DELIM_STR ":\t\n"
 
 /* GPIO vars */
-#define LED_GPIO 24
+#define LED_GPIO 53
 #define LED_ON   1
 #define LED_OFF  0 
 
@@ -185,7 +185,7 @@ static int dev_write(struct file *myfile, const char *mybuffer, size_t len, loff
 	char * char_message;
 	char * destruct_message;
 	
-	char_message = (char *) kmalloc(INPUT_LEN, GFP_KERNEL);
+	char_message     = (char *) kmalloc(INPUT_LEN, GFP_KERNEL);
 	destruct_message = (char *) kmalloc(INPUT_LEN, GFP_KERNEL);
 
 	retval = copy_from_user(char_message, mybuffer, len);
@@ -216,6 +216,8 @@ static int dev_write(struct file *myfile, const char *mybuffer, size_t len, loff
 		else
 		{
 			printk(KERN_ALERT "[led_driver] Driver received invalid response\n");
+			led_state = !led_state;
+			gpio_set_value(LED_GPIO, led_state);
 		}
 	}	
 	else if (strcmp(first_word, "freq") == 0)
