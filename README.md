@@ -1,8 +1,8 @@
-# ECEN5013-HW4
+# Beaglebone LED Driver and Server ECEN5013-HW4
 Repository for HW4 LED char driver
 
 ## Contents
-This repository holds a Beaglebone Black LED char driver for USR0 that can set static or freq/duty_cycle flashing on the LED, and can set and return variables.
+This repository holds a Beaglebone Black LED char driver for USR0 that can set/clear a static LED or freq/duty_cycle flashing on the LED, and can set and return variables.
 
 ## Usage
 1) First, run the `sudo sh -c "..."` commands for usr0 usr1 usr2 usr3 to ensure all LEDs are controlled by the GPIO only, else you will get EBUSY errno when trying to insert the led_driver module.
